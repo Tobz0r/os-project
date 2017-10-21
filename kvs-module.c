@@ -1,8 +1,12 @@
 
 #include "module-kvs.h"
+#include <linux/string.h>
 
 static struct proc_dir_entry *proc_parent;
 static struct proc_dir_entry *proc_child;
+#define NETLINK_USER 24
+#define MAX_PAYLOAD 1024
+struct sock *nl_sk=NULL;
 
 static void kvs_recv_msg(struct sk_buff *skb){
     struct nlmsghdr *nlh;
@@ -11,35 +15,36 @@ static void kvs_recv_msg(struct sk_buff *skb){
     int msg_size;
     char *msg;
     int res;
-
-    printk(KERN_INFO "Entering: %s\n", __FUNCTION__);
-
     
 
     nlh = (struct nlmsghdr *)skb->data;
-    printk(KERN_INFO "Netlink received msg payload:%s\n", (char *)nlmsg_data(nlh));
-    char typec = (char*)nlmsg_data(nlh)[0];
-    int type=typec;
-    if(type==ADD){
+    char recvs[MAX_PAYLOAD];
+    strcpy(recvs,(char*)nlmsg_data(nlh));
+    printk(KERN_INFO "Recived msg : %s\n", recvs);
+    char type = recvs[0];
+    printk(KERN_INFO "type=%c",type);
+    if(type==ADD){ //ADD
         msg="Added entry!";
+        //add entry
     }
-    else if(type==REMOVE){
-        msg="Removed entry"
+    else if(type==REMOVE){ e
+        msg="Removed entry";
+        //remove entrty ob
     }
-    else if(type==PRINT){
-        //do stuff
+    else if(type==PRINT){ 
+        //get entrty and add to msg
         msg="....";
     }
     else{
         printk(KERN_ERR "Invalid message type\n");
-        return -1;
+        return ;
     }
     pid = nlh->nlmsg_pid; /*pid of sending process */
     msg_size = strlen(msg);
     skb_out = nlmsg_new(msg_size, 0);
     if (!skb_out) {
         printk(KERN_ERR "Failed to allocate socket buffer\n");
-        return -1;
+        return ;
     }
 
     nlh = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, msg_size, 0);
@@ -48,7 +53,7 @@ static void kvs_recv_msg(struct sk_buff *skb){
 
     res = nlmsg_unicast(nl_sk, skb_out, pid);
     if (res < 0)
-        printk(KERN_INFO "Eltox plz no\n");
+        printk(KERN_ERR "Could not send back msg\n");
 
 }
 

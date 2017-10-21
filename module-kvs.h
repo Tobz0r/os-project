@@ -8,9 +8,12 @@
 #include <linux/proc_fs.h>
 #include <linux/string.h>
 #include <linux/seq_file.h>
-#define ADD 1
-#define REMOVE 2
-#define PRINT 3
+#include <linux/socket.h>
+#include <linux/net.h>
+#include <asm/types.h>
+#define ADD '1'
+#define REMOVE '2'
+#define PRINT '3'
 //måste va ovanför för jebane
 static int kvs_open(struct inode *inode, struct file *file);
 
