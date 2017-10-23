@@ -6,21 +6,22 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#define NETLINK_USER 24
+#define NETLINK_USER  23
 
 #define MAX_PAYLOAD 1024 /* maximum payload size*/
 struct sockaddr_nl src, dest;
 struct nlmsghdr *nlmsg = NULL;
 struct iovec iov;
-int type;
 struct msghdr msg;
 
 
 int main(int argc, char**argv){
     if(argc<3){
-        printf("kys\n");
+        printf("Action key Value\n");
     }
-    type=atoi(argv[1]);
+    char *type=argv[1];
+    char *key=argv[2];
+    char *value=argv[3];
     int sock_fd = socket(PF_NETLINK, SOCK_RAW, NETLINK_USER);
     if (sock_fd < 0)
         return -1;
@@ -47,8 +48,13 @@ int main(int argc, char**argv){
     nlmsg->nlmsg_len = NLMSG_SPACE(MAX_PAYLOAD);
     nlmsg->nlmsg_pid = getpid();
     nlmsg->nlmsg_flags = 0;
-
-    strcpy(NLMSG_DATA(nlmsg), "1 Hello");
+    char msgstr[MAX_PAYLOAD];
+    strcpy(msgstr,type);
+    strcat(msgstr, " ");
+    strcat(msgstr,key);
+    strcat(msgstr," ");
+    strcat(msgstr,value);
+    strcpy(NLMSG_DATA(nlmsg), msgstr);
 
     iov.iov_base = (void *)nlmsg;
     iov.iov_len = nlmsg->nlmsg_len;
