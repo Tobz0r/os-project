@@ -8,7 +8,7 @@
 
 #define NETLINK_USER  23
 
-#define MAX_PAYLOAD 1024 /* maximum payload size*/
+#define MAX_PAYLOAD 1024 /* max msg size*/
 struct sockaddr_nl src, dest;
 struct nlmsghdr *nlmsg = NULL;
 struct iovec iov;
