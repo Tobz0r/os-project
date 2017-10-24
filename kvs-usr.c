@@ -8,7 +8,7 @@
 
 #define NETLINK_USER  23
 
-#define MAX_PAYLOAD 1024 /* max msg size*/
+#define MAX_PAYLOAD 1024 /* maximum msg size*/
 struct sockaddr_nl src, dest;
 struct nlmsghdr *nlmsg = NULL;
 struct iovec iov;
@@ -16,12 +16,20 @@ struct msghdr msg;
 
 
 int main(int argc, char**argv){
-    if(argc<3){
+    if(argc!=3){
         printf("Action key Value\n");
     }
-    char *type=argv[1];
-    char *key=argv[2];
-    char *value=argv[3];
+    char type[2];
+    if(strcmp(argv[1],"Add")==0){
+        strcpy(type,"1");
+    }else if (strcmp(argv[1],"Remove")==0){
+        strcpy(type,"2");
+    }else if (strcmp(argv[1],"Print")==0){
+        strcpy(type,"3");
+    }else{
+        fprintf(stderr, "%s\n","Invalid action, use Add,Remove or Print" );
+        exit(-1);
+    }
     int sock_fd = socket(PF_NETLINK, SOCK_RAW, NETLINK_USER);
     if (sock_fd < 0)
         return -1;
@@ -51,9 +59,11 @@ int main(int argc, char**argv){
     char msgstr[MAX_PAYLOAD];
     strcpy(msgstr,type);
     strcat(msgstr, " ");
-    strcat(msgstr,key);
-    strcat(msgstr," ");
-    strcat(msgstr,value);
+    strcat(msgstr,argv[2]);
+    if(strcmp(type,"1")==0){
+        strcat(msgstr," ");
+        strcat(msgstr,argv[3]);
+    }
     strcpy(NLMSG_DATA(nlmsg), msgstr);
 
     iov.iov_base = (void *)nlmsg;
@@ -62,7 +72,8 @@ int main(int argc, char**argv){
     msg.msg_namelen = sizeof(dest);
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1;
-
+    fork(); /*sending from more than one process*/
+    fork();
     printf("skickar till kernel\n");
     sendmsg(sock_fd, &msg, 0);
     /* Read message from kernel */
