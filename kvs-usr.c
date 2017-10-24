@@ -6,9 +6,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#define NETLINK_USER  23
+#define NETLINK_USER  21
 
-#define MAX_PAYLOAD 1024 /* maximum msg size*/
+#define MAX_PAYLOAD 1024 /* maximum payload size*/
 struct sockaddr_nl src, dest;
 struct nlmsghdr *nlmsg = NULL;
 struct iovec iov;
@@ -72,7 +72,8 @@ int main(int argc, char**argv){
     msg.msg_namelen = sizeof(dest);
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1;
-    fork(); /*sending from more than one process*/
+
+    fork();
     fork();
     printf("skickar till kernel\n");
     sendmsg(sock_fd, &msg, 0);

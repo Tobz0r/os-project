@@ -21,13 +21,20 @@
 #include <linux/string.h>
 #include <linux/net.h>
 #include <asm/types.h>
+#include <linux/linkage.h>
+#include <linux/preempt.h>
+#include <linux/spinlock.h>
+#include <linux/debug_locks.h>
+#include <linux/interrupt.h>
+#include <linux/export.h>
 #define ADD '1'
 #define REMOVE '2'
 #define PRINT '3'
 
-#define NETLINK_USER 23
+#define NETLINK_USER 21
 #define MAX_PAYLOAD 1024
 struct sock *nl_sk=NULL;
+spinlock_t kvs_lock;
 
 //måste va ovanför för jebane
 static int kvs_open(struct inode *inode, struct file *file);
@@ -42,14 +49,14 @@ struct file_operations kvs_proc_fops ={
 
 typedef struct 
 {
-    void *key;
+     void *key;
     void *value;
 } KVSset;
 
 typedef struct 
 {
     KVSset *set;
-    int nrofelements;
+    size_t nrofelements;
 }KVSstore;
 
 struct
@@ -57,8 +64,12 @@ struct
     struct nlmsghdr *nlh;
     int pid;
 }msg;
+static void resize_pair(KVSstore *store);
+static int search_compare(const void *key, const void *element);
+static void kvs_recv_msg(struct sk_buff *skb);
+static int kvs_remove_set(KVSstore* store, void* key);
 
-
+static KVSset *searchKey(void *key);
 static KVSstore *create_store(void); //create store
 
 static void create_set(KVSstore *store, void *key, void *value); //create set
@@ -83,3 +94,4 @@ static void kvs_sort(KVSstore *store);
 
 
 
+static KVSset *get_set(KVSstore *store, const void *key);
