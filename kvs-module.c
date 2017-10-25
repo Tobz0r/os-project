@@ -1,17 +1,23 @@
+/**File: Kvs-module.c
+**Author: Tobias Estefors, Thom Resntröm
+**Destriction: A linux kernel module used to store
+**data given from user space
+*/
 #include "kvs-module.h"
 
 //directory
-static struct proc_dir_entry *proc_parent;
-static char *dirname = "kvs";
 static KVSstore *store = NULL;
 #define store_size 1024
-
+/**
+*Recvies message from user space via netlink socket
+*Returns: Nothing
+*/
 static void kvs_recv_msg(struct sk_buff *skb){
     struct nlmsghdr *nlh;
     int pid;
     struct sk_buff *skb_out;
     int msg_size;
-    char msg[MAX_PAYLOAD];
+    char msg[MAX_PAYLOAD]="";
     int res;
     
 
@@ -20,26 +26,27 @@ static void kvs_recv_msg(struct sk_buff *skb){
     strcpy(recvs,(char*)nlmsg_data(nlh));
     printk(KERN_INFO "Recived msg : %s\n", recvs);
     char type = recvs[0];
-    printk(KERN_INFO "type=%c",type);
     if(type==ADD){ //ADD
-        strcpy(msg,"Added entry !");
-        if(!store){
+                if(!store){
             store = create_store();
         }
         char *sepCopy=recvs;
         char *token=strsep(&sepCopy, " ");
         char *keyS=strsep(&sepCopy, " ");
         char *valueS=strsep(&sepCopy, " ");
+        strcpy(msg,keyS);
+        strcat(msg,":");
+        strcat(msg,valueS);
+        msg[strlen(msg)]='\0';
         char *key=kmalloc(sizeof(keyS),GFP_KERNEL);
         char *value=kmalloc(sizeof(valueS),GFP_KERNEL);
         strcpy(key,keyS);
         strcpy(value,valueS);
-        printk(KERN_INFO "tok %s  ",token );
-        printk(KERN_INFO "key %s  ",key);
-        printk(KERN_INFO "val %s  ",value);
         spin_lock(&kvs_lock);
         create_set(store,key,value);
         spin_unlock(&kvs_lock);
+                printk(KERN_INFO"%s",msg);
+
 
         //add entry
     }
@@ -56,15 +63,12 @@ static void kvs_recv_msg(struct sk_buff *skb){
         if(ret!=0){
             strcpy(msg,"Entry does not exist!");
         }else{
-            strcpy(msg,"Removed entry !");
+            strcpy(msg,key);
         }
         //remove entrty ob
     }
     else if(type==PRINT){ 
         //get entrty and add to msg
-        if(!store){
-            printk(KERN_INFO "eltox vafan");
-        }
         char *sepCopy=recvs;
         char *token=strsep(&sepCopy, " ");
         char *key=strsep(&sepCopy, " ");
@@ -75,11 +79,10 @@ static void kvs_recv_msg(struct sk_buff *skb){
         KVSvalue=get_value(store,keySend);
         spin_unlock(&kvs_lock);
         if(!KVSvalue){
-            strcpy(msg,"Something went wrong");
+            strcpy(msg,"Nothing to print");
             printk(KERN_INFO "Value is null");
         }else{
             strcpy(msg,KVSvalue->value);
-            printk(KERN_INFO "%s", (char*)KVSvalue->value);
         }
 
     }
@@ -107,9 +110,11 @@ static void kvs_recv_msg(struct sk_buff *skb){
 
 }
 
+/**
+*Initiate the module
+* Return: 0 if succeded else 10
+*/
 static int kvs_init(void){
-    spin_lock_init(&kvs_lock);
-
     /* skapa struct för recv funktion*/
     struct netlink_kernel_cfg cfg = {
         .input = kvs_recv_msg,
@@ -120,44 +125,15 @@ static int kvs_init(void){
         printk(KERN_ALERT "Error creating socket.\n");
         return -10;
     }
-    //KVSset *value;
-    /*check if there is any data to collect else send message saying no data         can     be found */
-    /* if data exists put data in KVS */
-    //int error = 1
-
-        //newstore->set->key = "1";
-        //newstore->set->value = "2";
-        //delete_value(newstore,newstore->set);    
-    //} 
-    //else
-    //{
-        /*tempo ska va en error ist */
-    //    printk(KERN_INFO "noett gick fel \n");
-    
-    //} 
- /*   if(!store){
-        store = create_store();
-    }
-    create_set(store,"hello","goodbye");
-    create_set(store,"hello2","goodbye2");
-    create_set(store,"hello3","goodbye3");
-    create_set(store,"hello4","goodbye4");
-    create_set(store,"hello5","goodbye5");
-    value = get_value(store,"hello3");
-    if(value){
-    printk(KERN_INFO "%s",(char*)value->value);
-	}
-    printk(KERN_INFO "ELTOX WAS THE SOLUTION\n");
-    proc_parent=create_dir(dirname);
-    proc_create("child",0,proc_parent,&kvs_proc_fops);
-    proc_create("child2",0,proc_parent,&kvs_proc_fops);*/
-
-
 
     return 0;
 
 }
 
+/*
+* Resize the set pairs by new size'
+* Return: Nothing
+*/
 static void resize_pair(KVSstore *store){
     if(!store){
         return;
@@ -165,49 +141,39 @@ static void resize_pair(KVSstore *store){
     store->set=krealloc(store->set,sizeof(KVSset)*store->nrofelements,GFP_ATOMIC);
 }
 
-static void kvs_exit(void)
-{
+static void kvs_exit(void){
     sock_release(nl_sk->sk_socket);
-    printk(KERN_INFO "GOODBYE JEBANE \n");
-    remove_proc_entry("kvs",NULL);
+    printk(KERN_INFO "Goodbye world \n");
+    kfree(store->set);
+    kfree(store);
     /* store, remove threads, free memory and remove KVS */
 }
+
 /* create new set */
-static void create_set(KVSstore *store, void *key, void *value)
-{
+/* Returns: Nothing*/
+static void create_set(KVSstore *store, void *key, void *value){
     KVSset *newset;
     KVSset *tempset = NULL;
     tempset=get_value(store, key);
 
-    //kollar om de finns i storen
+    //checks if the key exists
     if(tempset) {
-        printk(KERN_INFO "ELTOX WAS HERE \n");
         kfree(tempset->value);
         tempset->value=kmalloc(sizeof(KVSset),GFP_KERNEL);
         tempset->value=value;
     }
     else {
-        //create set
-        //öka nrofelements
         ++store->nrofelements;
         resize_pair(store);
         newset = &store->set[store->nrofelements -1];
-   /*     newset->key=kmalloc(sizeof(*key),GFP_KERNEL);
-        memcpy(newset->key,key,sizeof(*key));
-        newset->value =kmalloc(sizeof(*value),GFP_KERNEL);
-        memcpy(newset->value,value,sizeof(*value));*/
         newset->key=key;
         newset->value=value;
-
-        //sorta med nya värdet
         kvs_sort(store);
-
     }
-
 }
 
 /* create a new store */
-
+/* Returns: A new struct with the store*/
 static KVSstore *create_store(void){
     store = kmalloc(sizeof(KVSstore),GFP_KERNEL);
     store->set = kmalloc(sizeof(KVSset),GFP_KERNEL);
@@ -216,29 +182,21 @@ static KVSstore *create_store(void){
     return store;
 } 
 
-/* delete value from store */
-//static void delete_value(KVSstore *store, KVSset *set)
-//{
-    //set->key=NULL;
-    //set->value=NULL;
-//    --store->size;
-//    kfree(set);
-    
-//}
 
-/* what do */
+
+/**
+* Returns the value based on key*/
+/* Returns : A set with the value to assisosiated key*/
 static KVSset *get_value(KVSstore *store, void *key)
 {
     if(!store || !store->set){
-        printk(KERN_INFO "ELTOX WAS HERE TOO \n");
         return NULL;
     }
-    KVSset *tempset = NULL;
-    //tempset = bsearch(key,store->set,store->nrofelements,sizeof(KVSset),search_compare);
     return searchKey(key);
 
 }
 
+/** Search for the set with the given key**/
 static KVSset *searchKey(void *key){
     for(int i = 0 ; i < store->nrofelements;i++){
         KVSset *newset = &store->set[i];
@@ -253,66 +211,32 @@ static KVSset *searchKey(void *key){
 static KVSset *get_set(KVSstore *store, const void *key){
     return NULL;
 }
+
 /* compare funktion för qsort */
-static int compare_funk(const void *x, const void *x2)
-{
+static int compare_funk(const void *x, const void *x2){
     const KVSset *set1 = (const KVSset*)x;
     const KVSset *set2 =(const KVSset*)x2;
-    if(set1->key > set2->key)
-    {
+    if(set1->key > set2->key){
         return -1;
     }
-    if(set1->key < set2->key)
-    {
+    if(set1->key < set2->key){
         return 1;
     }
     return 0;
 }
 
-static int search_compare(const void *key, const void *element){
-	const KVSset *set=(const KVSset*)element;
-	if (key > set->key){
-		return -1;
-	}
-	if(key < set->key){
-		return 1;
-	}
-	return 0;
-}
 		
 
-static struct proc_dir_entry *create_dir(char *name)
-{
-    static struct proc_dir_entry *temp;
-    temp= proc_mkdir(name,NULL);
-    if(!temp){
-        printk(KERN_INFO "ERROR CREATING STORE \n");
-        //makes module error to load
-        //return -ENOMEM;
-    }
-    return temp;
-}
-static int kvs_open(struct inode *inode, struct file *file)
-{
-    return single_open(file,kvs_proc_show,NULL);
-}
-static int kvs_proc_show(struct seq_file *m, void *v)
-{
-    seq_printf(m,"hello proc!\n");
-    return 0;
-}
-
-static void kvs_sort(KVSstore *store)
-{
+/** sorts the kvs store, usefull when entry gets removed**/
+static void kvs_sort(KVSstore *store){
     if(!store)
     {
         printk(KERN_INFO "NO STORE FOUND \n");
         return;
     }
    sort(store->set,store->nrofelements,sizeof(KVSset),compare_funk,NULL);
-
 }
-/*Cortesy of Tom_HellQ */
+/** Deletes a set of pairs from the kvs store based on the key**/
 static int kvs_remove_set(KVSstore* store, void* key){
     if(!store){
         printk(KERN_INFO "NO STORE OR SET ");
@@ -331,12 +255,55 @@ static int kvs_remove_set(KVSstore* store, void* key){
         set->key=NULL;
         set->value=NULL;
     }
-    printk(KERN_INFO "%s ",(char*)key);
     store->nrofelements--;
     resize_pair(store);
     kvs_sort(store);
     return 0;
 }
+
+
+/*******CODE FOR READING FILE, DOES NOT WORK AS INDENTED*****/
+/*
+void fileread(const char * filename){
+  struct file *filp;
+  struct inode *inode;
+  mm_segment_t old_fs;
+  off_t fsize;
+  unsigned long magic;
+  filp=filp_open(filename,O_RDONLY,0);
+  if(!filp){
+    printk(KERN_INFO "Fail\n");
+    return;
+  }
+  inode=file_inode(filp);
+  fsize=inode->i_size;
+  char buf[fsize+1];
+  old_fs=get_fs();
+  set_fs(KERNEL_DS);
+  filp->f_op->llseek(filp,0,0);
+  filp->f_op->read(filp,buf,fsize,&filp->f_pos);
+  set_fs(old_fs);
+  buf[fsize]='\0';
+  //printk("%s",buf);
+  filp_close(filp,NULL);
+}
+
+void filewrite(char* filename, char* data){
+  struct file *filp;
+  mm_segment_t old_fs;
+  filp = filp_open(filename, O_RDWR|O_CREAT, 0644);
+  if(!filp){
+    printk(KERN_ERROR"error file");
+    return;
+  }
+  old_fs=get_fs();
+  set_fs(KERNEL_DS);
+  filp->f_op->write(filp, data, strlen(data),&filp->f_pos);
+  set_fs(old_fs);
+  filp_close(filp,NULL);
+}
+*/
+
 module_init(kvs_init);
 module_exit(kvs_exit);
 

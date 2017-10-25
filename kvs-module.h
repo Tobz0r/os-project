@@ -2,7 +2,6 @@
 
 #include <linux/module.h>  /* Needed by all kernel modules */
 #include <linux/kernel.h>  /* Needed for loglevels (KERN_WARNING, KERN_EMERG, KERN_INFO, etc.) */
-#include <linux/init.h>    /* Needed for __init and __exit macros. */
 #include <linux/slab.h>    /* kmalloc */
 #include <linux/skbuff.h>
 #include <linux/netlink.h>
@@ -15,7 +14,6 @@
 #include <linux/file.h>
 #include <linux/bsearch.h>
 #include <linux/sort.h>
-#include <linux/init.h>
 #include <linux/seq_file.h>
 #include <linux/socket.h>
 #include <linux/string.h>
@@ -27,6 +25,8 @@
 #include <linux/debug_locks.h>
 #include <linux/interrupt.h>
 #include <linux/export.h>
+#include <linux/init.h> 
+#include <linux/mm.h> 
 #define ADD '1'
 #define REMOVE '2'
 #define PRINT '3'
@@ -36,20 +36,12 @@
 struct sock *nl_sk=NULL;
 spinlock_t kvs_lock;
 
-//måste va ovanför för jebane
-static int kvs_open(struct inode *inode, struct file *file);
 
-struct file_operations kvs_proc_fops ={
-    .owner = THIS_MODULE,
-    .open =kvs_open,
-    .read =seq_read,
-    .llseek = seq_lseek,
-    .release = single_release,
-};
+
 
 typedef struct 
 {
-     void *key;
+    void *key;
     void *value;
 } KVSset;
 
@@ -64,34 +56,34 @@ struct
     struct nlmsghdr *nlh;
     int pid;
 }msg;
+
+
+
+
 static void resize_pair(KVSstore *store);
+
 static int search_compare(const void *key, const void *element);
+
 static void kvs_recv_msg(struct sk_buff *skb);
+
 static int kvs_remove_set(KVSstore* store, void* key);
 
 static KVSset *searchKey(void *key);
-static KVSstore *create_store(void); //create store
 
-static void create_set(KVSstore *store, void *key, void *value); //create set
+static KVSstore *create_store(void); 
 
-//static void set_value(KVSstore *store, KVSset *set); //store the "value" in memory under indentifier "key, so we can access it later. if some data was already presented under "key, this data will be replaced.
+static void create_set(KVSstore *store, void *key, void *value);
 
-static KVSset *get_value(KVSstore *store, void *key); //get some data previously saved under the identifier "key", or fail if no data was stored for "key"
+static KVSset *get_value(KVSstore *store, void *key); 
  
-//static void delete_value(KVSstore *store, KVSset *set); //delete the data that was stored under "key"
-
 /* proc stuff */
 //skapar en vanlig fil med namnet "name" file mode "mode" i dir parent
 
 static int compare_funk(const void *x, const void *x2);
-static struct proc_dir_entry *create_dir(char *name);
-static int kvs_proc_show(struct seq_file *m, void *v);
+
 static void kvs_sort(KVSstore *store);
 
-//skapa en symlink (symbolisk link)
-
-//skapa en directory
-
-
-
 static KVSset *get_set(KVSstore *store, const void *key);
+
+//void fileread(const char * filename)
+//void filewrite(char* filename, char* data)

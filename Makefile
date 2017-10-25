@@ -1,4 +1,4 @@
-ccflags-y += -std=gnu99
+ccflags-y := -std=gnu99
 obj-m += kvs-module.o
 
 all:
