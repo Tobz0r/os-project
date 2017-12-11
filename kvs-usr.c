@@ -3,6 +3,7 @@
 **Destriction: User space program
 * to add data to the lkm
 */
+#define _BSD_SOURCE
 #include <sys/socket.h>
 #include <linux/netlink.h>
 #include <stdio.h>
@@ -11,6 +12,9 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <ctype.h>
+#include <stdbool.h>
+
 
 #define NETLINK_USER  21
 #define filename "results.txt"
@@ -20,6 +24,7 @@
 void write_to_file(char *str);
 void delete_from_file(char *str);
 int linecount(FILE* fp);
+bool file_empty();
 struct sockaddr_nl src, dest;
 struct nlmsghdr *nlmsg = NULL;
 struct iovec iov;
@@ -29,8 +34,13 @@ struct msghdr msg;
 int main(int argc, char**argv){
     if(argc!=3 && argc!=4){
         printf("./kvs-usr Action key Value\n");
+        return -1;
     }
     char type[2];
+    if((strcmp(argv[1],"Add")==0 ) && argc!=4){
+        printf("add needs 3 args\n");
+        return -1;
+    }
     if(strcmp(argv[1],"Add")==0){
         strcpy(type,"1");
     }else if (strcmp(argv[1],"Remove")==0){
@@ -67,36 +77,73 @@ int main(int argc, char**argv){
     nlmsg->nlmsg_len = NLMSG_SPACE(MAX_SIZE);
     nlmsg->nlmsg_pid = getpid();
     nlmsg->nlmsg_flags = 0;
-    char msgstr[MAX_PAYLOAD];
+    char msgstr[MAX_SIZE];
     strcpy(msgstr,type);
     strcat(msgstr, " ");
     strcat(msgstr,argv[2]);
     if(strcmp(type,"1")==0){
         strcat(msgstr," ");
         strcat(msgstr,argv[3]);
+
     }
+   if(!file_empty()){
+        FILE *fp = fopen(filename,"r");
 
+        if(!fp){
+            perror("file");
+            exit(-1);
+        }
+        char buf[MAX_SIZE];
+        while( fgets(buf, sizeof(buf), fp) != NULL ){
+            if(strlen(buf)==1){
+                continue;
+            }
+            char line[MAX_SIZE];
+            strcpy(line,"1");
+            char *token1,*token2;
+            token1=strtok(buf,":");
+            token2=strtok(NULL,":");
+            strcat(line," ");
+            strcat(line,token1);
+            strcat(line," ");
+            strcat(line,token2);
+            strcpy(NLMSG_DATA(nlmsg), line);
+            iov.iov_base = (void *)nlmsg;
+            iov.iov_len = nlmsg->nlmsg_len;
+            msg.msg_name = (void *)&dest;
+            msg.msg_namelen = sizeof(dest);
+            msg.msg_iov = &iov;
+            msg.msg_iovlen = 1;
+            sendmsg(sock_fd, &msg, 0);
+        }
+    }
     strcpy(NLMSG_DATA(nlmsg), msgstr);
-
     iov.iov_base = (void *)nlmsg;
     iov.iov_len = nlmsg->nlmsg_len;
     msg.msg_name = (void *)&dest;
     msg.msg_namelen = sizeof(dest);
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1;
-;
     sendmsg(sock_fd, &msg, 0);
     /* Read message from kernel */
-    recvmsg(sock_fd, &msg, 0);
+    if(strcmp(type,"1")){
+        recvmsg(sock_fd, &msg, 0);
+    }
     if(strcmp(type,"1")==0){
-        write_to_file((char*)NLMSG_DATA(nlmsg));
+        char *temps=msgstr+2;
+        for(int i=0; i<strlen(temps); i++){
+            if(isspace(temps[i])){
+                temps[i]=':';
+            }
+        }
+        write_to_file(temps);
     }
     else if(strcmp(type,"2")==0){
-        char temp[MAX_PAYLOAD];
+        char temp[MAX_SIZE];
         strcpy(temp,argv[2]);
         printf("%s\n",temp );
         delete_from_file(temp);
-    }else if(strcmp(type,"3")){
+    }else if(strcmp(type,"3")==0){
         printf("Received message: %s\n", (char*)NLMSG_DATA(nlmsg));
     }
     close(sock_fd);
@@ -116,19 +163,17 @@ void delete_from_file(char *str){
     char* tmpname = "tmp.txt";
     FILE* fp = fopen(filename, "r");
     FILE* outFile = fopen(tmpname, "w+");
-    char line [MAX_PAYLOAD]; 
+    char line [MAX_SIZE]; 
     int lineCount = 0;
     if(!fp){
         printf("Open Error");
     }
     while( fgets(line, sizeof(line), fp) != NULL ){
-        char backup[MAX_PAYLOAD];
+        char backup[MAX_SIZE];
         strcpy(backup,line);
-        printf("%s\n",backup);
         char*token=strtok(line,":");
-        printf("%s %s\n", token,str);
         if(strcmp(line,str)){
-            fprintf(outFile, "%s", backup);
+            fprintf(outFile, "%s\n", backup);
         }
 
         lineCount++;
@@ -141,3 +186,14 @@ void delete_from_file(char *str){
     }
 }
 
+bool file_empty(){
+    FILE *fp = fopen(filename,"a");
+    if(!fp){
+        perror("file");
+        exit(-1);
+    }
+    fseek(fp,0,SEEK_END);
+    int size=ftell(fp);
+    fclose(fp);
+    return size==0;
+}
