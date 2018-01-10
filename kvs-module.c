@@ -72,7 +72,7 @@ static void kvs_recv_msg(struct sk_buff *skb){
         KVSvalue=get_value(store,keySend);
         spin_unlock(&kvs_lock);
         if(!KVSvalue){
-            strcpy(msg,"Something went wrong");
+            strcpy(msg,"No such key");
             printk(KERN_INFO "Value is null");
         }else{
             strcpy(msg,KVSvalue->value);
@@ -93,11 +93,10 @@ static void kvs_recv_msg(struct sk_buff *skb){
         printk(KERN_ERR "Failed to allocate socket buffer\n");
         return ;
     }
-
+    spin_lock(&kvs_lock);
     nlh = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, msg_size, 0);
     NETLINK_CB(skb_out).dst_group = 0; /* not in mcast group */
     strncpy(nlmsg_data(nlh), msg, msg_size);
-    spin_lock(&kvs_lock);
     res = nlmsg_unicast(nl_sk, skb_out, pid);
     spin_unlock(&kvs_lock);
     if (res < 0)

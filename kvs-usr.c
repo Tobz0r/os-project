@@ -141,10 +141,9 @@ int main(int argc, char**argv){
     else if(strcmp(type,"2")==0){
         char temp[MAX_SIZE];
         strcpy(temp,argv[2]);
-        printf("%s\n",temp );
         delete_from_file(temp);
     }else if(strcmp(type,"3")==0){
-        printf("Received message: %s\n", (char*)NLMSG_DATA(nlmsg));
+        printf("Received message: %s", (char*)NLMSG_DATA(nlmsg));
     }
     close(sock_fd);
 }
@@ -181,9 +180,7 @@ void delete_from_file(char *str){
     fclose(fp);
     fclose(outFile);
     remove(filename);
-    if( !rename(tmpname, filename) ) {
-        printf("Rename Error");
-    }
+    rename(tmpname, filename);
 }
 
 bool file_empty(){
